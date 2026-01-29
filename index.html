@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gene Studio Pro</title>
+    
+    <style>
+        /* --- CSS VARIABLES --- */
+        :root {
+            --bg: #050505; 
+            --card-bg: rgba(28, 28, 30, 0.65);
+            --text-main: #f5f5f7; 
+            --text-secondary: #a1a1a6;
+            --border: rgba(255,255,255,0.15); 
+            --accent: #0a84ff; 
+            --accent-hover: #409cff; 
+            --input-bg: rgba(0,0,0,0.4);
+            --shadow: 0 20px 50px rgba(0,0,0,0.5);
+            --base-A: #4ade80; --base-T: #f87171; --base-G: #e2e8f0; --base-C: #38bdf8;
+            --diff-bg: #3a1515; --diff-text: #ff6b6b;
+            --spotlight-bg: rgba(30, 30, 30, 0.85);
+        }
+
+        body.light-mode {
+            --bg: #f5f5f7;
+            --card-bg: rgba(255, 255, 255, 0.75);
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --border: rgba(0,0,0,0.1);
+            --accent: #0071e3;
+            --accent-hover: #0077ED;
+            --input-bg: rgba(255,255,255,0.6);
+            --shadow: 0 10px 40px rgba(0,0,0,0.08);
+            --base-A: #15803d; --base-T: #b91c1c; --base-G: #334155; --base-C: #0369a1;
+            --diff-bg: #ffe5e5; --diff-text: #d10000;
+            --spotlight-bg: rgba(255, 255, 255, 0.85);
+        }
+
+        html { background-color: var(--bg); transition: background 0.3s; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg); color: var(--text-main); margin: 0; padding: 0;
+            transition: background 0.3s, color 0.3s;
+            overflow-x: hidden; perspective: 1000px;
+            zoom: 75%; min-height: 100vh;
+        }
+
+        /* --- ZEN MODE --- */
+        body.zen-active .card { opacity: 0.3; filter: grayscale(0.8); transition: all 0.5s; transform: scale(0.98); }
+        body.zen-active .card.focused { opacity: 1; filter: grayscale(0); transform: scale(1.02) translateZ(20px); z-index: 50; border-color: var(--accent); box-shadow: 0 0 100px rgba(0,0,0,0.8); }
+
+        /* --- BACKGROUNDS --- */
+        #dna-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+        #confetti-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+
+        /* HEADER */
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(20,20,20,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border); padding: 15px 40px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        body.light-mode header { background: rgba(255,255,255,0.8); }
+
+        .header-left h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+        .header-left p { margin: 2px 0 0 0; font-size: 0.8rem; color: var(--text-secondary); }
+        .header-controls { display: flex; align-items: center; gap: 15px; }
+
+        .icon-btn-head {
+            background: none; border: none; cursor: pointer; color: var(--text-main);
+            width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s; position: relative;
+        }
+        .icon-btn-head:hover { background: var(--border); }
+        .icon-btn-head svg { width: 20px; height: 20px; fill: currentColor; }
+
+        /* SETTINGS MODAL */
+        #settings-modal {
+            position: absolute; top: 70px; right: 20px; width: 320px;
+            background: var(--card-bg); backdrop-filter: blur(30px);
+            border: 1px solid var(--border); border-radius: 18px; padding: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4); z-index: 200;
+            transform-origin: top right; transform: scale(0.9); opacity: 0; visibility: hidden;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #settings-modal.open { transform: scale(1); opacity: 1; visibility: visible; }
+        .setting-row { margin-bottom: 20px; transition: opacity 0.3s; }
+        .setting-row.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
+        .setting-label { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; align-items: center; }
+        
+        .demo-btn { width: 100%; padding: 12px; border-radius: 10px; background: var(--border); border: none; color: var(--text-main); cursor: pointer; font-weight: 600; transition: 0.2s; margin-top: 15px; }
+        .demo-btn:hover { background: var(--accent); color: white; }
+
+        /* SPOTLIGHT */
+        #spotlight-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(5px); z-index: 2000; display: flex; justify-content: center; align-items: flex-start; padding-top: 15vh; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+        #spotlight-overlay.active { opacity: 1; pointer-events: all; }
+        #spotlight-box { width: 600px; max-width: 90%; background: var(--spotlight-bg); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); overflow: hidden; transform: translateY(20px); transition: transform 0.2s; }
+        #spotlight-overlay.active #spotlight-box { transform: translateY(0); }
+        #spotlight-input { width: 100%; padding: 20px; font-size: 1.2rem; border: none; background: transparent; color: var(--text-main); border-bottom: 1px solid var(--border); outline: none; }
+        #spotlight-results { max-height: 300px; overflow-y: auto; padding: 10px; }
+        .spotlight-item { padding: 12px 15px; border-radius: 8px; cursor: pointer; color: var(--text-main); display: flex; justify-content: space-between; align-items: center; }
+        .spotlight-item:hover { background: var(--accent); color: white; }
+        .spotlight-key { font-size: 0.8rem; opacity: 0.6; border: 1px solid currentColor; padding: 2px 6px; border-radius: 4px; }
+
+        /* GRID & CARDS */
+        .app-container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; padding-bottom: 100px;}
+        .tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 30px; align-items: stretch; }
+        
+        .card {
+            background: var(--card-bg); border-radius: 24px; padding: 25px;
+            box-shadow: var(--shadow); transition: transform 0.1s ease-out, box-shadow 0.2s; 
+            position: relative; border: 1px solid var(--border);
+            display: flex; flex-direction: column; justify-content: space-between;
+            transform-style: preserve-3d; overflow: hidden;
+        }
+        .card-glare { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.15) 0%, transparent 60%); opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 2; }
+        .card:hover .card-glare { opacity: 1; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; transform: translateZ(20px); z-index: 3;}
+        h2 { margin: 0; font-size: 1.3rem; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+
+        /* INPUTS */
+        .input-group { 
+            margin-bottom: 15px; position: relative; transform: translateZ(10px); width: 100%; z-index: 3;
+            display: flex; flex-direction: column; flex-grow: 1; 
+        }
+        .input-label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        textarea {
+            width: 100%; padding: 15px; background: var(--input-bg); color: var(--text-main);
+            border: 1px solid var(--border); border-radius: 14px;
+            font-family: 'SF Mono', monospace; font-size: 14px; box-sizing: border-box;
+            transition: border 0.2s, box-shadow 0.2s; 
+            resize: none; flex-grow: 1; min-height: 100px; height: auto;
+        }
+        input[type="number"] {
+            width: 100%; padding: 15px; background: var(--input-bg); color: var(--text-main);
+            border: 1px solid var(--border); border-radius: 14px;
+            font-family: 'SF Mono', monospace; font-size: 14px; box-sizing: border-box;
+            transition: border 0.2s, box-shadow 0.2s; height: 50px; flex-grow: 0;
+        }
+        textarea.drag-over { border: 2px dashed var(--accent); background: rgba(0, 113, 227, 0.1); }
+        textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1); }
+        input[type="number"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1); }
+
+        .status-bar { display: flex; gap: 10px; margin-top: 5px; font-size: 0.75rem; min-height: 15px; }
+        .status-badge { padding: 2px 8px; border-radius: 4px; display: none; font-weight: bold; }
+        .status-badge.start { background: rgba(40, 205, 65, 0.2); color: #4ade80; display: block; }
+        .status-badge.stop { background: rgba(255, 59, 48, 0.2); color: #ff3b30; display: block; }
+        .status-badge.error { background: rgba(255, 149, 0, 0.2); color: #ff9f0a; display: block; }
+
+        .action-btn {
+            width: 100%; background: var(--accent); color: white; border: none; padding: 14px;
+            border-radius: 12px; font-weight: 600; cursor: pointer; transition: transform 0.1s, opacity 0.2s;
+            display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 15px; 
+            transform: translateZ(15px); z-index: 3; flex-shrink: 0;
+        }
+        .action-btn:hover { opacity: 0.9; transform: scale(1.01) translateZ(15px); }
+        .action-btn:active { transform: scale(0.98) translateZ(15px); }
+
+        .result-area {
+            margin-top: 20px; padding: 15px; background: var(--input-bg); border-radius: 12px;
+            border: 1px solid var(--border); display: none; word-break: break-all; transform: translateZ(10px); z-index: 3;
+        }
+        .result-area.show { display: block; animation: slideDown 0.4s cubic-bezier(0.2, 1, 0.2, 1); }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .res-val { font-family: 'SF Mono', monospace; font-size: 0.95rem; margin-bottom: 8px; line-height: 1.5; }
+        
+        #gel-canvas { width: 100%; height: 100px; background: #000; border-radius: 8px; margin-top: 10px; border: 1px solid #333; }
+        .base-A { color: var(--base-A); font-weight: bold; }
+        .base-T { color: var(--base-T); font-weight: bold; }
+        .base-G { color: var(--base-G); font-weight: bold; }
+        .base-C { color: var(--base-C); font-weight: bold; }
+        .mutation { color: var(--diff-text); background: var(--diff-bg); border-radius: 4px; padding: 0 2px; box-shadow: 0 0 0 1px var(--diff-text); }
+
+        /* LEGEND & LINKS */
+        .legend-box { margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); }
+        .legend-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 10px; }
+        .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        .section-header { font-size: 1.5rem; font-weight: 700; margin-top: 80px; margin-bottom: 30px; color: var(--text-main); text-align: center; }
+        .links-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; }
+        .link-pill { display: inline-block; padding: 10px 25px; border-radius: 50px; background: var(--card-bg); border: 1px solid var(--border); text-decoration: none; color: var(--text-main); font-weight: 600; font-size: 0.9rem; transition: all 0.2s; box-shadow: var(--shadow); }
+        .link-pill:hover { background: var(--accent); color: white; border-color: var(--accent); transform: translateY(-2px); }
+        .dev-hub { margin-top: 60px; padding: 40px; border-radius: 24px; background: linear-gradient(135deg, var(--card-bg), rgba(255,255,255,0.05)); border: 1px solid var(--border); text-align: center; }
+        .dev-buttons { display: flex; justify-content: center; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
+        .contact-btn { background: transparent; border: 2px solid var(--text-secondary); color: var(--text-main); padding: 12px 30px; border-radius: 12px; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .contact-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,113,227,0.1); }
+        .thank-btn { background: var(--text-main); color: var(--bg); border: none; padding: 12px 30px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .thank-btn:hover { transform: scale(1.05); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+        
+        footer { text-align: center; margin-top: 60px; color: var(--text-secondary); font-size: 0.9rem; }
+        #toast { visibility: hidden; min-width: 200px; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); color: #fff; text-align: center; border-radius: 50px; padding: 12px 24px; position: fixed; z-index: 1000; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: all 0.4s; font-weight: 500; }
+        #toast.show { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); }
+        .math-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; }
+
+        /* THEME TOGGLE & SLIDERS */
+        .theme-switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .theme-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; border: 1px solid #555; }
+        .slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); border-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 20px; width: 20px; border-radius: 50%; background: var(--card-bg); border: 1px solid var(--border); margin-top: -8px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: var(--border); border-radius: 2px; }
+
+        /* INFO ICONS & HITBOX FIX */
+        .info-icon { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; font-style: italic; cursor: help; transition: all 0.2s; position: relative; }
+        .info-icon::before { content: ''; position: absolute; top: -15px; left: -15px; right: -15px; bottom: -15px; z-index: 10; }
+        .info-icon:hover { background: var(--accent); color: white; border-color: var(--accent); }
+        .info-icon::after { content: attr(data-tooltip); position: absolute; right: 30px; top: -10px; width: 220px; background: rgba(0,0,0,0.8); color: white; padding: 10px 15px; border-radius: 12px; font-size: 0.85rem; font-weight: normal; font-style: normal; line-height: 1.4; backdrop-filter: blur(10px); pointer-events: none; opacity: 0; visibility: hidden; transform: translateX(10px); transition: all 0.3s; z-index: 999; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .info-icon:hover::after { opacity: 1; visibility: visible; transform: translateX(0); }
+
+        @media print {
+            body { background: white; color: black; zoom: 100%; }
+            header, .theme-switch, .action-btn, .input-group, footer, .dev-hub, .links-grid, .section-header, #dna-canvas, #spotlight-overlay, .info-icon, .header-controls { display: none !important; }
+            .app-container { max-width: 100%; padding: 0; }
+            .tool-grid { display: block; }
+            .card { border: none; box-shadow: none; break-inside: avoid; border-bottom: 1px solid #ccc; padding: 10px 0; border-radius: 0; margin-bottom: 20px; transform: none !important; }
+            .result-area { display: block !important; border: none; padding: 0; background: transparent; }
+            .card:not(:has(.result-area.show)) { display: none; }
+            h2 { color: black; font-size: 1.5rem; margin-bottom: 5px; }
+            .res-val { color: black; }
+            .app-container::before { content: "Gene Studio Report"; display: block; font-size: 2rem; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="dna-canvas"></canvas>
+<canvas id="confetti-canvas"></canvas>
+
+<div id="spotlight-overlay" onclick="closeSpotlight(event)">
+    <div id="spotlight-box">
+        <input type="text" id="spotlight-input" placeholder="Type a command..." autocomplete="off">
+        <div id="spotlight-results"></div>
+    </div>
+</div>
+
+<header>
+    <div class="header-left">
+        <h1>Gene Studio <span style="font-size:0.6em; opacity:0.6; font-weight:400;">Pro</span></h1>
+        <p>Scientific Toolkit</p>
+    </div>
+    <div class="header-controls">
+        <button class="icon-btn-head" onclick="toggleSettings()" title="Settings"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+        <button class="icon-btn-head" onclick="window.print()" title="Export Lab Report"><svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></button>
+        <button class="icon-btn-head" onclick="openSpotlight()" title="Command Palette (Cmd+K)"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
+        <label class="theme-switch"><input type="checkbox" id="themeToggle"><span class="slider"></span></label>
+    </div>
+</header>
+
+<div id="settings-modal">
+    <div class="setting-row"><div class="setting-label"><span>Animate Background</span><input type="checkbox" id="dna-toggle" checked onchange="toggleBackground()"></div></div>
+    
+    <div class="setting-row" id="row-speed">
+        <div class="setting-label"><span>Speed</span> <span id="speed-val">1.0x</span></div>
+        <input type="range" min="0" max="100" value="50" id="dna-speed" oninput="updateSliders()">
+    </div>
+    
+    <div class="setting-row" id="row-density">
+        <div class="setting-label"><span>Density</span> <span id="density-val">Medium</span></div>
+        <input type="range" min="10" max="100" value="50" id="dna-density" oninput="updateSliders()">
+    </div>
+    
+    <div class="legend-box">
+        <div class="legend-title">Status Guide</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#4ade80;"></div> Start Codon (ATG) found</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff3b30;"></div> Stop Codon (TAA/TAG/TGA)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff9f0a;"></div> Invalid Character</div>
+    </div>
+
+    <button onclick="loadDemoData()" class="demo-btn">⚡ Load Demo Data</button>
+</div>
+
+<div class="app-container">
+    <div class="tool-grid">
+        <div class="card" id="card-mutation">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>🧬 Mutation Hunter</h2>
+                <div class="info-icon" data-tooltip="Compares a healthy Reference gene vs. a Patient gene to highlight mutations (typos) in red.">i</div>
+            </div>
+            <div class="input-group"><span class="input-label">Reference</span><textarea id="mutRef" placeholder="e.g. ATGC..." oninput="smartCheck(this); saveState(this)"></textarea><div class="status-bar"></div></div>
+            <div class="input-group"><span class="input-label">Patient</span><textarea id="mutPat" placeholder="e.g. ATCC..." oninput="smartCheck(this); saveState(this)"></textarea><div class="status-bar"></div></div>
+            <button class="action-btn" onclick="runMutation()">Compare Sequences</button>
+            <div id="mutResult" class="result-area"><span class="input-label">Result:</span><div id="mutOutput" class="res-val"></div></div>
+        </div>
+
+        <div class="card" id="card-restriction">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>✂️ Restriction Cutter</h2>
+                <div class="info-icon" data-tooltip="Finds cut sites (EcoRI, BamHI) and simulates a Real-Physics Gel Electrophoresis run.">i</div>
+            </div>
+            <div class="input-group"><textarea id="reInput" placeholder="Paste DNA sequence..." oninput="smartCheck(this); saveState(this)"></textarea><div class="status-bar"></div></div>
+            <button class="action-btn" onclick="runRE()">Find Cuts & Run Gel</button>
+            <div id="reResult" class="result-area">
+                <div id="reOutput" class="res-val"></div>
+                <div class="input-label" style="margin-top:10px;">Virtual Gel (Simulated):</div>
+                <canvas id="gel-canvas"></canvas>
+            </div>
+        </div>
+
+        <div class="card" id="card-dogma">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>⚙️ Central Dogma</h2>
+                <div class="info-icon" data-tooltip="Converts DNA -> RNA -> Protein and finds the Reverse Complement.">i</div>
+            </div>
+            <div class="input-group"><textarea id="dogmaInput" placeholder="Enter DNA..." oninput="smartCheck(this); saveState(this)"></textarea><div class="status-bar"></div></div>
+            <button class="action-btn" onclick="runDogma()">Translate</button>
+            <div id="dogmaResult" class="result-area"><span class="input-label">Protein Chain:</span><div id="resProtein" class="res-val"></div></div>
+        </div>
+
+        <div class="card" id="card-primer">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>🔎 Primer Design</h2>
+                <div class="info-icon" data-tooltip="Identifies Forward & Reverse primers and calculates Melting Temp (Tm).">i</div>
+            </div>
+            <div class="input-group"><textarea id="primerInput" placeholder="Enter Gene (>20bp)..." oninput="smartCheck(this); saveState(this)"></textarea><div class="status-bar"></div></div>
+            <button class="action-btn" onclick="runPrimer()">Design</button>
+            <div id="primerResult" class="result-area"><span class="input-label">Forward (Tm):</span><div id="resFwd" class="res-val"></div></div>
+        </div>
+
+        <div class="card" id="card-codon">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>🔄 Codon Optimizer</h2>
+                <div class="info-icon" data-tooltip="Converts Protein sequence back to DNA optimized for E. coli expression.">i</div>
+            </div>
+            <div class="input-group"><textarea id="codonInput" placeholder="Enter Protein Sequence (e.g. MVHLT...)" oninput="smartCheck(this); saveState(this)"></textarea><div class="status-bar"></div></div>
+            <button class="action-btn" onclick="runCodonOpt()">Optimize (E. coli)</button>
+            <div id="codonResult" class="result-area"><span class="input-label">Optimized DNA:</span><div id="resCodon" class="res-val"></div></div>
+        </div>
+
+        <div class="card" id="card-molarity">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>🧪 Molarity Calc</h2>
+                <div class="info-icon" data-tooltip="Calculates grams of solute needed for a specific concentration.">i</div>
+            </div>
+            <div class="math-grid">
+                <div class="input-group"><span class="input-label">MW (g/mol)</span><input type="number" id="mwVal" placeholder="58.44" oninput="saveState(this)"></div>
+                <div class="input-group"><span class="input-label">Vol (L)</span><input type="number" id="volVal" placeholder="0.5" oninput="saveState(this)"></div>
+            </div>
+            <div class="input-group"><span class="input-label">Conc (M)</span><input type="number" id="concVal" placeholder="1.0" oninput="saveState(this)"></div>
+            <button class="action-btn" onclick="runMath()">Calculate Mass</button>
+            <div id="mathResult" class="result-area"><div id="mathOutput" class="res-val" style="font-weight:bold; color:var(--accent);"></div></div>
+        </div>
+
+        <div class="card" id="card-cleaner">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>🧹 Seq. Cleaner</h2>
+                <div class="info-icon" data-tooltip="Removes numbers and spaces to make text FASTA ready.">i</div>
+            </div>
+            <div class="input-group"><textarea id="cleanInput" placeholder="Paste messy text..." oninput="saveState(this)"></textarea></div>
+            <button class="action-btn" onclick="runClean()">Format (FASTA)</button>
+            <div id="cleanResult" class="result-area">
+                <div id="cleanOutput" class="res-val"></div>
+                <button class="action-btn" style="margin-top:10px; background:transparent; border:1px solid var(--accent); color:var(--accent);" onclick="copyText('cleanOutput')">Copy Text</button>
+            </div>
+        </div>
+
+        <div class="card" id="card-mw">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>⚖️ MW Calculator</h2>
+                <div class="info-icon" data-tooltip="Estimates Molecular Weight (kDa) of a protein.">i</div>
+            </div>
+            <div class="input-group"><textarea id="mwSeqInput" placeholder="Paste Protein Sequence..." oninput="saveState(this)"></textarea></div>
+            <button class="action-btn" onclick="runMW()">Weigh Protein</button>
+            <div id="mwResult" class="result-area"><div id="mwOutput" class="res-val" style="font-size:1.2rem;"></div></div>
+        </div>
+
+        <div class="card" id="card-gc">
+            <div class="card-glare"></div>
+            <div class="card-header">
+                <h2>📊 GC Content</h2>
+                <div class="info-icon" data-tooltip="Calculates G/C percentage.">i</div>
+            </div>
+            <div class="input-group"><textarea id="gcInput" placeholder="Enter DNA..." oninput="smartCheck(this); saveState(this)"></textarea><div class="status-bar"></div></div>
+            <button class="action-btn" onclick="runGC()">Calculate %</button>
+            <div id="gcResult" class="result-area"><div id="resGC" class="res-val" style="font-weight:bold;"></div></div>
+        </div>
+    </div>
+
+    <div class="section-header">🌍 Essential Resources</div>
+    <div class="links-grid">
+        <a href="https://www.ncbi.nlm.nih.gov/" target="_blank" class="link-pill">NCBI</a>
+        <a href="https://blast.ncbi.nlm.nih.gov/Blast.cgi" target="_blank" class="link-pill">BLAST</a>
+        <a href="https://primer3.ut.ee/" target="_blank" class="link-pill">Primer3</a>
+        <a href="https://www.uniprot.org/" target="_blank" class="link-pill">UniProt</a>
+        <a href="https://genome.ucsc.edu/" target="_blank" class="link-pill">UCSC Browser</a>
+    </div>
+
+    <div class="dev-hub">
+        <h2 style="justify-content: center;">Created for Biologists</h2>
+        <div class="dev-buttons">
+            <a href="mailto:enes.aydin.bsns@gmail.com?subject=Gene%20Studio%20Inquiry" class="contact-btn" onclick="playDrafting()">✉️ Contact Enes</a>
+            <button onclick="triggerConfetti()" class="thank-btn">🎉 Say Thanks</button>
+        </div>
+    </div>
+
+    <footer>
+        <p id="bioQuote">Loading witty bio-pun...</p>
+        <p style="margin-top:10px; opacity: 0.5;">&copy; 2026 Gene Studio Pro</p>
+    </footer>
+</div>
+
+<div id="toast">Copied!</div>
+
+<script>
+    /* --- AUDIO ENGINE --- */
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep() { if(audioCtx.state === 'suspended') audioCtx.resume(); const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.frequency.setValueAtTime(523.25, audioCtx.currentTime); g.gain.setValueAtTime(0.05, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.3); }
+    function playVictory() { if(audioCtx.state === 'suspended') audioCtx.resume(); const p=(f,t)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.setValueAtTime(f,audioCtx.currentTime+t);g.gain.setValueAtTime(0.1,audioCtx.currentTime+t);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+t+1);o.connect(g);g.connect(audioCtx.destination);o.start(audioCtx.currentTime+t);o.stop(audioCtx.currentTime+t+1);}; p(261.63,0);p(329.63,0.15);p(392.00,0.30);p(523.25,0.45); }
+    function playDrafting() { if(audioCtx.state === 'suspended') audioCtx.resume(); const b=audioCtx.createBuffer(1,audioCtx.sampleRate*0.5,audioCtx.sampleRate),d=b.getChannelData(0);for(let i=0;i<b.length;i++)d[i]=Math.random()*2-1;const n=audioCtx.createBufferSource();n.buffer=b;const g=audioCtx.createGain(),f=audioCtx.createBiquadFilter();f.type="lowpass";f.frequency.value=1000;g.gain.setValueAtTime(0.1,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.3);n.connect(f);f.connect(g);g.connect(audioCtx.destination);n.start(); }
+
+    /* --- PERSISTENCE --- */
+    function saveState(el) { localStorage.setItem(el.id, el.value); }
+    function loadState() {
+        document.querySelectorAll('textarea, input[type="number"]').forEach(el => {
+            const saved = localStorage.getItem(el.id);
+            if(saved) { el.value = saved; smartCheck(el); }
+        });
+    }
+
+    /* --- BACKGROUNDS (FIXED TOGGLE & SLIDERS) --- */
+    const dc=document.getElementById('dna-canvas'),dt=dc.getContext('2d');
+    let w,h,dp=[]; 
+    // Default: Show=True, Speed=0.2 (1.0x), Density=0.5
+    let ds={show:true, speed:0.2, density:0.5};
+    let animationId = null;
+
+    function rz(){w=dc.width=window.innerWidth;h=dc.height=window.innerHeight;} 
+    window.onresize=rz; rz();
+
+    function initDna(){
+        for(let y=0;y<h+50;y+=25) dp.push({y:y,off:y*0.02,ph:0});
+        startAnimation();
+    }
+
+    function startAnimation() {
+        if (!animationId && ds.show) {
+            animationId = requestAnimationFrame(animateDna);
+        }
+    }
+
+    function stopAnimation() {
+        if (animationId) {
+            cancelAnimationFrame(animationId);
+            animationId = null;
+            dt.clearRect(0, 0, w, h); // Clear canvas
+        }
+    }
+
+    function animateDna(){
+        if (!ds.show) return;
+        dt.clearRect(0,0,w,h);
+        const dark = !document.body.classList.contains('light-mode');
+        
+        dp.forEach(p=>{
+            p.y-=ds.speed*2; if(p.y<-50)p.y=h+50; p.ph+=ds.speed*0.05;
+            // Strands calculation based on density
+            const strands = Math.floor(ds.density * 6) + 4;
+            
+            for(let i=0;i<strands;i++){
+                let sp=w/(strands+1), lx=sp*(i+1);
+                let x1=lx+Math.sin(p.y*0.01+p.ph+p.off)*40, x2=lx+Math.sin(p.y*0.01+p.ph+p.off+Math.PI)*40;
+                let c1=dark?`rgba(40,205,65,0.6)`:`rgba(10,80,40,0.8)`, c2=dark?`rgba(0,180,255,0.6)`:`rgba(10,50,100,0.8)`;
+                
+                dt.fillStyle=(i%2==0)?c2:c1; 
+                dt.beginPath();dt.arc(x1,p.y,3.5,0,6.28);dt.fill();
+                dt.beginPath();dt.arc(x2,p.y,3.5,0,6.28);dt.fill();
+                
+                dt.strokeStyle=dark?`rgba(150,150,150,0.15)`:`rgba(50,50,50,0.1)`;
+                dt.beginPath();dt.moveTo(x1,p.y);dt.lineTo(x2,p.y);dt.stroke();
+            }
+        });
+        animationId = requestAnimationFrame(animateDna);
+    } 
+
+    /* --- SETTINGS LOGIC (FIXED) --- */
+    function toggleSettings() { document.getElementById('settings-modal').classList.toggle('open'); }
+    
+    // Close settings if click outside
+    document.addEventListener('click', function(e) { 
+        const m = document.getElementById('settings-modal'); 
+        const b = document.querySelector('button[onclick="toggleSettings()"]'); 
+        if(!m.contains(e.target) && !b.contains(e.target)) m.classList.remove('open'); 
+    });
+
+    function toggleBackground() {
+        const isOn = document.getElementById('dna-toggle').checked;
+        ds.show = isOn;
+        
+        // Gray out sliders
+        document.getElementById('row-speed').classList.toggle('disabled', !isOn);
+        document.getElementById('row-density').classList.toggle('disabled', !isOn);
+        document.getElementById('dna-speed').disabled = !isOn;
+        document.getElementById('dna-density').disabled = !isOn;
+
+        if(isOn) startAnimation();
+        else stopAnimation();
+    }
+
+    function updateSliders() {
+        const speedVal = document.getElementById('dna-speed').value; // 0 to 100
+        const denVal = document.getElementById('dna-density').value; // 10 to 100
+        
+        // Update Labels
+        document.getElementById('speed-val').innerText = (speedVal / 50).toFixed(1) + 'x';
+        
+        let dText = "Low";
+        if(denVal > 35) dText = "Medium";
+        if(denVal > 70) dText = "High";
+        document.getElementById('density-val').innerText = dText;
+
+        // Update Internal Physics
+        ds.speed = (speedVal / 50) * 0.2; // 50 becomes 0.2 (internal default)
+        ds.density = denVal / 100;
+    }
+    
+    function loadDemoData() {
+        document.getElementById('mutRef').value = "GTGCACCTGACTCCTGAGGAGAAGTCT"; 
+        document.getElementById('mutPat').value = "GTGCACCTGACTCCTGTGGAGAAGTCT"; 
+        document.getElementById('reInput').value = "ATGCATGCGAATTCATGCATGCGGATCC"; 
+        document.getElementById('dogmaInput').value = "ATGAGTAAAGGAGAAGAACTTTTCACTGGAGTTGTCCCAATTCTTGTTGAATTAGATGGTGATGTTAATGGGCAC"; 
+        document.getElementById('primerInput').value = "AAATTTCCCGGGAAATTTCCCGGGAAATTTCCCGGGAAATTTCCCGGGAAATTTCCCGGGAAATTTCCCGGG";
+        document.getElementById('codonInput').value = "MALWMRLLPLLALLALWGPDPAAAFVN"; 
+        document.getElementById('mwVal').value = "58.44"; document.getElementById('volVal').value = "0.5"; document.getElementById('concVal').value = "5.0";
+        document.getElementById('mwSeqInput').value = "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"; 
+        document.getElementById('gcInput').value = "GGGGCCCCTTTTAAAA";
+        document.querySelectorAll('textarea, input').forEach(el => { smartCheck(el); saveState(el); });
+        showToast("Demo Data Loaded! ⚡");
+    }
+
+    /* --- INTERACTIONS --- */
+    document.querySelectorAll('.card').forEach(c => {
+        c.addEventListener('mousemove', e => {
+            const r=c.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top;
+            const rx=((y-r.height/2)/20)*-1, ry=(x-r.width/2)/20;
+            c.style.transform=`perspective(1000px) rotateX(${rx}deg) rotateY(${ry}deg) scale(1.02)`;
+            c.style.setProperty('--mouse-x', `${x}px`); c.style.setProperty('--mouse-y', `${y}px`);
+        });
+        c.addEventListener('mouseleave', () => c.style.transform='perspective(1000px) rotateX(0) rotateY(0) scale(1)');
+        c.addEventListener('focusin', () => { document.body.classList.add('zen-active'); c.classList.add('focused'); });
+        c.addEventListener('focusout', () => { document.body.classList.remove('zen-active'); c.classList.remove('focused'); });
+    });
+
+    document.querySelectorAll('textarea').forEach(a=>{
+        a.addEventListener('dragover',e=>{e.preventDefault();a.classList.add('drag-over')});
+        a.addEventListener('dragleave',()=>a.classList.remove('drag-over'));
+        a.addEventListener('drop',e=>{
+            e.preventDefault();a.classList.remove('drag-over');
+            const f=e.dataTransfer.files[0]; if(f&&(f.name.endsWith('.txt')||f.name.endsWith('.fasta'))){
+                const r=new FileReader(); r.onload=ev=>{a.value=ev.target.result;smartCheck(a);saveState(a)}; r.readAsText(f);
+            }
+        });
+    });
+
+    /* --- HELPERS --- */
+    function smartCheck(el){
+        const v=el.value.toUpperCase(), b=el.nextElementSibling; 
+        if(!b || !b.classList.contains('status-bar')) return;
+        b.innerHTML='';
+        if(v.includes('ATG'))b.innerHTML+=`<span class="status-badge start">START</span>`;
+        if(v.includes('TAA')||v.includes('TAG')||v.includes('TGA'))b.innerHTML+=`<span class="status-badge stop">STOP</span>`;
+        if(/[^ATGCN\s\r\n]/.test(v))b.innerHTML+=`<span class="status-badge error">INVALID</span>`;
+    }
+    function clean(s){return s.replace(/[^a-zA-Z]/g,'').toUpperCase();}
+    function getTm(s){let a=(s.match(/A/g)||[]).length,t=(s.match(/T/g)||[]).length,g=(s.match(/G/g)||[]).length,c=(s.match(/C/g)||[]).length;return 2*(a+t)+4*(g+c);}
+    function copyText(id){navigator.clipboard.writeText(document.getElementById(id).innerText);document.getElementById('toast').classList.add('show');setTimeout(()=>document.getElementById('toast').classList.remove('show'),2000);}
+    function showRes(id){document.getElementById(id).classList.add('show');playBeep();}
+    function showToast(msg) { const t=document.getElementById('toast'); t.innerText=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+
+    /* --- TOOLS --- */
+    function runMutation(){
+        let r=clean(document.getElementById('mutRef').value), p=clean(document.getElementById('mutPat').value);
+        if(!r||!p)return; let o="", m=Math.max(r.length,p.length);
+        for(let i=0;i<m;i++){let a=r[i]||"-",b=p[i]||"-";o+=(a!==b)?`<span class="mutation">${b}</span>`:b;}
+        document.getElementById('mutOutput').innerHTML=o; showRes('mutResult');
+    }
+    function runRE(){
+        let d=clean(document.getElementById('reInput').value);
+        let sites=[]; let cutIndices=[0];
+        if(d.includes("GAATTC")) { sites.push("EcoRI"); let regex=/GAATTC/g, match; while(match=regex.exec(d)) cutIndices.push(match.index+1); } 
+        if(d.includes("GGATCC")) { sites.push("BamHI"); let regex=/GGATCC/g, match; while(match=regex.exec(d)) cutIndices.push(match.index+1); }
+        if(d.includes("AAGCTT")) { sites.push("HindIII"); let regex=/AAGCTT/g, match; while(match=regex.exec(d)) cutIndices.push(match.index+1); }
+        cutIndices.push(d.length); cutIndices.sort((a,b)=>a-b);
+        let fragments = []; for(let i=1; i<cutIndices.length; i++) fragments.push(cutIndices[i] - cutIndices[i-1]);
+        document.getElementById('reOutput').innerText=sites.length?"Found: "+sites.join(", ")+" ("+fragments.length+" fragments)":"No common sites found."; showRes('reResult');
+        
+        const c=document.getElementById('gel-canvas'),x=c.getContext('2d');c.width=300;c.height=100;
+        x.fillStyle="#000";x.fillRect(0,0,300,100); x.fillStyle="#aaa";
+        [1000, 800, 600, 400, 200].forEach((size, i) => x.fillRect(20, 10 + (i*18), 30, 2));
+        x.fillStyle="#fff";x.fillText("Ladder",15,95); x.fillStyle="#0a84ff";
+        if(fragments.length === 0 || fragments[0] === d.length) { x.fillRect(150, 10, 30, 4); } 
+        else { fragments.forEach(frag => { let yPos = 90 - (frag / d.length * 80); if(yPos < 10) yPos = 10; x.fillRect(150, yPos, 30, 3); }); }
+        x.fillStyle="#fff";x.fillText("Sample",145,95);
+    }
+    function runDogma(){
+        let d=clean(document.getElementById('dogmaInput').value);
+        const m={'ATA':'I','ATC':'I','ATT':'I','ATG':'M','ACA':'T','ACC':'T','ACG':'T','ACT':'T','AAC':'N','AAT':'N','AAA':'K','AAG':'K','AGC':'S','AGT':'S','AGA':'R','AGG':'R','CTA':'L','CTC':'L','CTG':'L','CTT':'L','CCA':'P','CCC':'P','CCG':'P','CCT':'P','CAC':'H','CAT':'H','CAA':'Q','CAG':'Q','CGA':'R','CGC':'R','CGG':'R','CGT':'R','GTA':'V','GTC':'V','GTG':'V','GTT':'V','GCA':'A','GCC':'A','GCG':'A','GCT':'A','GAC':'D','GAT':'D','GAA':'E','GAG':'E','GGA':'G','GGC':'G','GGG':'G','GGT':'G','TCA':'S','TCC':'S','TCG':'S','TCT':'S','TTC':'F','TTT':'F','TTA':'L','TTG':'L','TAC':'Y','TAT':'Y','TAA':'_','TAG':'_','TGC':'C','TGT':'C','TGA':'_','TGG':'W'};
+        let p="";for(let i=0;i<d.length;i+=3)p+=m[d.substring(i,i+3)]||"?";
+        document.getElementById('resProtein').innerText=p; showRes('dogmaResult');
+    }
+    function runPrimer(){ let d=clean(document.getElementById('primerInput').value);if(d.length<20)return; let f=d.substring(0,20); document.getElementById('resFwd').innerText=`${f} (${getTm(f)}°C)`; showRes('primerResult'); }
+    function runCodonOpt(){
+        let p=clean(document.getElementById('codonInput').value);
+        const m={'A':'GCG','R':'CGT','N':'AAC','D':'GAT','C':'TGC','Q':'CAG','E':'GAA','G':'GGC','H':'CAT','I':'ATT','L':'CTG','K':'AAA','M':'ATG','F':'TTT','P':'CCG','S':'AGC','T':'ACC','W':'TGG','Y':'TAT','V':'GTG','_':'TAA'};
+        let d="";for(let c of p)d+=m[c]||"?"; document.getElementById('resCodon').innerText=d; showRes('codonResult');
+    }
+    function runMath(){ let m=parseFloat(document.getElementById('mwVal').value),v=parseFloat(document.getElementById('volVal').value),c=parseFloat(document.getElementById('concVal').value); if(m&&v&&c)document.getElementById('mathOutput').innerText=`${(m*v*c).toFixed(3)}g`; showRes('mathResult'); }
+    function runClean(){document.getElementById('cleanOutput').innerText=clean(document.getElementById('cleanInput').value).match(/.{1,10}/g).join(' ');showRes('cleanResult');}
+    function runMW(){document.getElementById('mwOutput').innerText=`${(clean(document.getElementById('mwSeqInput').value).length*110/1000).toFixed(1)} kDa`;showRes('mwResult');}
+    function runGC(){let d=clean(document.getElementById('gcInput').value);document.getElementById('resGC').innerText=(((d.match(/[GC]/g)||[]).length/d.length)*100).toFixed(1)+"%";showRes('gcResult');}
+
+    /* --- SPOTLIGHT --- */
+    const tools=[{name:"Mutation Hunter",id:"card-mutation"},{name:"Restriction Cutter",id:"card-restriction"},{name:"Central Dogma",id:"card-dogma"},{name:"Primer Design",id:"card-primer"},{name:"Codon Optimizer",id:"card-codon"},{name:"Molarity Calc",id:"card-molarity"},{name:"Seq Cleaner",id:"card-cleaner"},{name:"MW Calc",id:"card-mw"},{name:"GC Content",id:"card-gc"}];
+    document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();openSpotlight()}});
+    function openSpotlight(){document.getElementById('spotlight-overlay').classList.add('active');document.getElementById('spotlight-input').focus();renderSpotlight(tools);}
+    function closeSpotlight(e){if(e.target.id==='spotlight-overlay')document.getElementById('spotlight-overlay').classList.remove('active');}
+    document.getElementById('spotlight-input').addEventListener('input',e=>{renderSpotlight(tools.filter(t=>t.name.toLowerCase().includes(e.target.value.toLowerCase())))});
+    function renderSpotlight(items){document.getElementById('spotlight-results').innerHTML=items.map(t=>`<div class="spotlight-item" onclick="triggerTool('${t.id}')">${t.name} <span class="spotlight-key">Go</span></div>`).join('');}
+    function triggerTool(id){document.getElementById('spotlight-overlay').classList.remove('active');document.getElementById(id).scrollIntoView({behavior:'smooth',block:'center'});document.getElementById(id).querySelector('textarea,input').focus();}
+
+    function triggerConfetti(){playVictory();showToast("You are awesome! 🎉");const c=document.getElementById('confetti-canvas'),x=c.getContext('2d');c.width=window.innerWidth;c.height=window.innerHeight;const p=[];for(let i=0;i<100;i++)p.push({x:c.width/2,y:c.height/2,w:Math.random()*10+5,h:Math.random()*10+5,c:`hsl(${Math.random()*360},100%,50%)`,vx:(Math.random()-0.5)*20,vy:(Math.random()-0.5)*20,g:0.5});function d(){x.clearRect(0,0,c.width,c.height);p.forEach((k,i)=>{k.x+=k.vx;k.y+=k.vy;k.vy+=k.g;x.fillStyle=k.c;x.fillRect(k.x,k.y,k.w,k.h);if(k.y>c.height)p.splice(i,1)});if(p.length)requestAnimationFrame(d)}d();}
+
+    const qs=[
+        "“I wish I was Adenine so I could get paired with U.”",
+        "“Helicase unzips my genes.”",
+        "“Biology is the only science where multiplication is the same as division.”",
+        "“Cell membranes are the definition of 'passive-aggressive'.”",
+        "“I'm a fungi, but I'm not always fun.”",
+        "“Are you made of Copper and Tellurium? Because you are CuTe.”",
+        "“Without enzymes, things would be really slow around here.”"
+    ];
+    document.getElementById('bioQuote').innerText=qs[Math.floor(Math.random()*qs.length)];
+    document.getElementById('themeToggle').addEventListener('change',function(){document.body.classList.toggle('light-mode',this.checked)});
+    
+    initDna(); loadState();
+</script>
+</body>
+</html>
